@@ -8,7 +8,7 @@ BUCKET = os.environ.get("UPLOAD_BUCKET", "")
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "healthy"}
 
 @app.get("/items")
 def list_items():
