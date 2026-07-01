@@ -1,0 +1,50 @@
+name: Build and Deploy
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+
+permissions:
+  id-token: write      # required for OIDC keyless auth
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPO: portfolio-api
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r app/requirements.txt
+      - run: PYTHONPATH=. pytest app/tests/
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: terraform } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::436785508105:role/github-actions-terraform
+          aws-region: us-east-1
+
+      - name: Build and push image
+        working-directory: .
+        run: |
+          ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
+          REG=$ACCOUNT.dkr.ecr.us-east-1.amazonaws.com
+          aws ecr get-login-password | docker login --username AWS --password-stdin $REG
+          TAG=${GITHUB_SHA::8}
+          docker buildx build --platform linux/arm64 \
+            -t $REG/$ECR_REPO:$TAG -f app/Dockerfile . --push
+          echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
+
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.11.0" }
+      - run: terraform init
+      - run: terraform apply -auto-approve -var="image_tag=${{ env.IMAGE_TAG }}" -var="alert_email=25michaelthomas@gmail.com"
