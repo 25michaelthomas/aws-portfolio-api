@@ -1,14 +1,20 @@
 from fastapi import FastAPI, UploadFile
 import boto3, os
+from functools import lru_cache
 from .db import get_conn
 
 app = FastAPI(title="Portfolio API")
-s3 = boto3.client("s3")
-BUCKET = os.environ.get("UPLOAD_BUCKET", "")
+
+@lru_cache
+def get_s3():
+    return boto3.client("s3")
+
+def bucket():
+    return os.environ.get("UPLOAD_BUCKET", "")
 
 @app.get("/health")
 def health():
-    return {"status": "healthy"}
+    return {"status": "ok"}
 
 @app.get("/items")
 def list_items():
@@ -19,5 +25,5 @@ def list_items():
 
 @app.post("/upload")
 def upload(file: UploadFile):
-    s3.upload_fileobj(file.file, BUCKET, file.filename)
+    get_s3().upload_fileobj(file.file, bucket(), file.filename)
     return {"uploaded": file.filename}
