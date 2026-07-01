@@ -22,10 +22,13 @@ jobs:
       - run: pip install -r app/requirements.txt
       - run: PYTHONPATH=. pytest app/tests/
 
+
+
+
   deploy:
     needs: test
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm 
     defaults: { run: { working-directory: terraform } }
     steps:
       - uses: actions/checkout@v4
